@@ -95,5 +95,5 @@ The SARIMA model effectively captures both seasonal and non-seasonal patterns in
 
 👨‍💻 Author
 Ayush Dubey
-B.Tech CSE
+B.Tech CSE with AI-ML
 IILM University
