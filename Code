@@ -1,0 +1,109 @@
+
+# SARIMA Implementation for Seasonal Effects
+# Dataset: Electricity Consumption per Day
+# ----------------------------------------------------
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+from statsmodels.tsa.seasonal import seasonal_decompose
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+import warnings
+warnings.filterwarnings("ignore")
+
+# ----------------------------------------------------
+# STEP 1: Create Synthetic Electricity Consumption Data
+# ----------------------------------------------------
+# Simulate daily electricity consumption with weekly seasonality
+np.random.seed(42)
+days = pd.date_range(start='2022-01-01', periods=365, freq='D')
+consumption = 300 + 20 * np.sin(2 * np.pi * days.dayofyear / 7) + np.random.normal(0, 8, 365)
+data = pd.DataFrame({'Date': days, 'Electricity_Consumption': consumption})
+data.set_index('Date', inplace=True)
+
+# ----------------------------------------------------
+# STEP 2: Data Analysis (EDA)
+# ----------------------------------------------------
+plt.figure(figsize=(10, 5))
+plt.plot(data['Electricity_Consumption'], label='Electricity Consumption (kWh)')
+plt.title("Daily Electricity Consumption with Seasonal Pattern")
+plt.xlabel("Date")
+plt.ylabel("Electricity Consumption (kWh)")
+plt.legend()
+plt.show()
+
+# Decompose to view trend and seasonality
+decomposition = seasonal_decompose(data['Electricity_Consumption'], model='additive', period=7)
+decomposition.plot()
+plt.suptitle("Decomposition: Trend, Seasonality, and Residuals", fontsize=12)
+plt.show()
+
+# ----------------------------------------------------
+# STEP 3: Split into Training and Testing
+# ----------------------------------------------------
+train = data[:-30]  # Use all but last 30 days for training
+test = data[-30:]   # Last 30 days for testing
+
+# ----------------------------------------------------
+# STEP 4: Build SARIMA Model
+# ----------------------------------------------------
+# Weekly seasonality â†’ seasonal_order=(1,1,1,7)
+model = SARIMAX(train['Electricity_Consumption'],
+                order=(1, 1, 1),
+                seasonal_order=(1, 1, 1, 7),
+                enforce_stationarity=False,
+                enforce_invertibility=False)
+
+result = model.fit(disp=False)
+print("Model Training Completed âœ…")
+print(result.summary())
+
+# ----------------------------------------------------
+# STEP 5: Forecast for Test Period
+# ----------------------------------------------------
+pred = result.get_forecast(steps=30)
+pred_ci = pred.conf_int()
+
+# Plot Actual vs Predicted
+plt.figure(figsize=(10, 5))
+plt.plot(train.index, train['Electricity_Consumption'], label='Train Data')
+plt.plot(test.index, test['Electricity_Consumption'], label='Actual Test Data', color='orange')
+plt.plot(test.index, pred.predicted_mean, label='Predicted', color='green')
+plt.fill_between(test.index,
+                 pred_ci.iloc[:, 0],
+                 pred_ci.iloc[:, 1], color='gray', alpha=0.2)
+plt.title("SARIMA Forecast vs Actual Electricity Consumption")
+plt.xlabel("Date")
+plt.ylabel("Electricity Consumption (kWh)")
+plt.legend()
+plt.show()
+
+# ----------------------------------------------------
+# STEP 6: Performance Evaluation
+# ----------------------------------------------------
+mae = mean_absolute_error(test['Electricity_Consumption'], pred.predicted_mean)
+rmse = np.sqrt(mean_squared_error(test['Electricity_Consumption'], pred.predicted_mean))
+mape = np.mean(np.abs((test['Electricity_Consumption'] - pred.predicted_mean) / test['Electricity_Consumption'])) * 100
+
+print("\nðŸ“Š Model Performance:")
+print(f"Mean Absolute Error (MAE): {mae:.2f}")
+print(f"Root Mean Squared Error (RMSE): {rmse:.2f}")
+print(f"Mean Absolute Percentage Error (MAPE): {mape:.2f}%")
+
+# ----------------------------------------------------
+# STEP 7: Future Prediction (Next 30 Days)
+# ----------------------------------------------------
+future_forecast = result.get_forecast(steps=30)
+future_index = pd.date_range(data.index[-1] + pd.offsets.Day(1), periods=30, freq='D')
+
+plt.figure(figsize=(10, 5))
+plt.plot(data.index, data['Electricity_Consumption'], label='Past Data')
+plt.plot(future_index, future_forecast.predicted_mean, label='Future Forecast', color='red')
+plt.title("SARIMA Model - Predicted Electricity Consumption for Next 30 Days")
+plt.xlabel("Date")
+plt.ylabel("Predicted Electricity Consumption (kWh)")
+plt.legend()
+plt.show()
+
+print("\nâœ… Future Electricity Consumption Prediction Completed Successfully.")
